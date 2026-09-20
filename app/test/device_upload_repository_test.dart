@@ -26,9 +26,6 @@ class _DeviceRepository extends DeviceUploadRepository {
 
   @override
   Future<List<UploadPhoto>> fetchGallery() async => [photo];
-
-  @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async => [];
 }
 
 const _created = {
@@ -156,6 +153,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     controller.applyEventContext(
       UploadEventContext(
         eventId: draft.eventId!,
@@ -229,6 +227,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     controller.selectPlace(
       const UploadPlace(id: 'plc_2zq', name: '은구비 공원', address: ''),
     );
