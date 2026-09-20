@@ -49,7 +49,7 @@ final communityFeedProvider = FutureProvider<CommunityFeed>((ref) {
   final tab = ref.watch(communityFeedTabProvider);
   final sort = ref.watch(communitySortProvider);
   return ref.watch(communityRepositoryProvider).fetchFeed(tab: tab, sort: sort);
-});
+}, retry: (_, _) => null);
 
 /// `03_커뮤니티_검색_포커스`의 최근·추천 검색어.
 final communitySearchSuggestionsProvider =
