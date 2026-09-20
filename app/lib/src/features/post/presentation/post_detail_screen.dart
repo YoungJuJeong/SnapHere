@@ -148,7 +148,7 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// 긴 장소명과 주소가 화면 너비를 넘지 않도록 장소 정보와 신뢰도 배지를 나눈다.
+/// 장소 정보는 가용 폭에서 줄바꿈하고 배지는 다음 줄에 둔다.
 class _PlaceRow extends StatelessWidget {
   const _PlaceRow({required this.detail});
 
@@ -178,17 +178,10 @@ class _PlaceRow extends StatelessWidget {
                   children: [
                     Text(
                       place.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: text.labelLarge?.copyWith(color: AppColors.brand),
                     ),
-                    if (place.addr1 != null)
-                      Text(
-                        place.addr1!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.bodySmall,
-                      ),
+                    if (place.addr1?.trim().isNotEmpty ?? false)
+                      Text(place.addr1!, style: text.bodySmall),
                   ],
                 ),
               ),
