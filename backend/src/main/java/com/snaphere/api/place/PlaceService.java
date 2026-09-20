@@ -26,15 +26,18 @@ public class PlaceService {
     private final ViewCounterService views;
     private final RecentPlaceService recentPlaces;
     private final PlaceReadCache cache;
+    private final GoogleGeocodingClient geocoder;
 
     public PlaceService(PlaceRepository places,
                         TourPlaceDetailClient details, ViewCounterService views,
-                        RecentPlaceService recentPlaces, PlaceReadCache cache) {
+                        RecentPlaceService recentPlaces, PlaceReadCache cache,
+                        GoogleGeocodingClient geocoder) {
         this.places = places;
         this.details = details;
         this.views = views;
         this.recentPlaces = recentPlaces;
         this.cache = cache;
+        this.geocoder = geocoder;
     }
 
     public List<PlaceDtos.Region> regions() {

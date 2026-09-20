@@ -124,6 +124,7 @@ public class TierLogEntity {
                     TierImprovementHint.SHOOT_NOW_WITH_CAMERA);
             case ON_SITE_CAMERA -> List.of();
             case RECENT_WITHIN_RADIUS -> List.of(TierImprovementHint.SHOOT_NOW_WITH_CAMERA);
+            case LOCAL_VERIFICATION -> List.of();
         };
     }
 

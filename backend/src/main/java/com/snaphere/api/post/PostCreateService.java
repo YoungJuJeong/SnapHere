@@ -33,6 +33,7 @@ import com.snaphere.api.post.tier.TierDecision;
 import com.snaphere.api.post.tier.TierDecisionLogger;
 import com.snaphere.api.post.tier.TierInput;
 import com.snaphere.api.post.tier.TierPolicy;
+import com.snaphere.api.post.tier.TierReason;
 import com.snaphere.api.post.tier.TierThresholds;
 import com.snaphere.api.visit.VisitRecorder;
 import org.springframework.context.ApplicationEventPublisher;

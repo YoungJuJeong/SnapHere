@@ -24,12 +24,13 @@ class PlaceServiceTest {
     @Mock private ViewCounterService views;
     @Mock private RecentPlaceService recentPlaces;
     @Mock private PlaceReadCache cache;
+    @Mock private GoogleGeocodingClient geocoder;
 
     private PlaceService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlaceService(places, details, views, recentPlaces, cache);
+        service = new PlaceService(places, details, views, recentPlaces, cache, geocoder);
     }
 
     @Test
