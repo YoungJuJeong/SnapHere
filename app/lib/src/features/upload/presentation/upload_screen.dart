@@ -301,81 +301,44 @@ class _GalleryStep extends ConsumerWidget {
                 ),
               ),
             ),
-          Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: const BoxDecoration(
-              color: AppColors.card,
-              border: Border.symmetric(
-                horizontal: BorderSide(color: AppColors.border),
-              ),
-            ),
-            child: Row(
-              children: [
-                _GalleryTabButton(
-                  label: '최근',
-                  selected: state.galleryTab == UploadGalleryTab.recent,
-                  onTap: () =>
-                      controller.selectGalleryTab(UploadGalleryTab.recent),
-                ),
-                const SizedBox(width: AppSpacing.xl),
-                _GalleryTabButton(
-                  label: '임시 저장 피드',
-                  selected: state.galleryTab == UploadGalleryTab.drafts,
-                  onTap: () =>
-                      controller.selectGalleryTab(UploadGalleryTab.drafts),
-                ),
-              ],
-            ),
-          ),
           Expanded(
-            child:
-                state.galleryTab == UploadGalleryTab.drafts &&
-                    state.visiblePhotos.isEmpty
-                ? const Center(child: Text('저장된 사진이 없어요'))
-                : GridView.builder(
-                    key: const Key('upload-gallery-grid'),
-                    padding: EdgeInsets.zero,
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          crossAxisSpacing: 2,
-                          mainAxisSpacing: 2,
-                        ),
-                    itemCount:
-                        state.visiblePhotos.length +
-                        (state.galleryTab == UploadGalleryTab.recent ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      final hasCamera =
-                          state.galleryTab == UploadGalleryTab.recent;
-                      if (hasCamera && index == 0) {
-                        return InkWell(
-                          key: const Key('upload-camera-tile'),
-                          onTap: () async {
-                            await _capturePhoto(context, controller);
-                          },
-                          child: const ColoredBox(
-                            color: Color(0xFF21262E),
-                            child: Icon(
-                              Icons.photo_camera,
-                              size: 36,
-                              color: Colors.white,
-                            ),
-                          ),
-                        );
-                      }
-                      final photo =
-                          state.visiblePhotos[index - (hasCamera ? 1 : 0)];
-                      final order = state.selectedPhotoIds.indexOf(photo.id);
-                      return _GalleryTile(
-                        photo: photo,
-                        order: order < 0 ? null : order + 1,
-                        onTap: () {
-                          _togglePhoto(context, controller, photo, order);
-                        },
-                      );
+            child: GridView.builder(
+              key: const Key('upload-gallery-grid'),
+              padding: EdgeInsets.zero,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 180,
+                crossAxisSpacing: 2,
+                mainAxisSpacing: 2,
+              ),
+              itemCount: state.recentPhotos.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return InkWell(
+                    key: const Key('upload-camera-tile'),
+                    onTap: () async {
+                      await _capturePhoto(context, controller);
                     },
-                  ),
+                    child: const ColoredBox(
+                      color: Color(0xFF21262E),
+                      child: Icon(
+                        Icons.photo_camera,
+                        size: 36,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                }
+                final photo = state.recentPhotos[index - 1];
+                final order = state.selectedPhotoIds.indexOf(photo.id);
+                return _GalleryTile(
+                  photo: photo,
+                  order: order < 0 ? null : order + 1,
+                  onTap: () {
+                    _togglePhoto(context, controller, photo, order);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -417,10 +380,6 @@ class _GalleryStep extends ConsumerWidget {
   ) {
     if (order < 0 && _photoLimitReached) {
       _showSelectionMessage(context, _photoLimitMessage);
-      return;
-    }
-    if (order >= 0 && state.selectedPhotoIds.length == 1) {
-      _showSelectionMessage(context, '사진을 한 장 이상 선택해 주세요.');
       return;
     }
     controller.togglePhoto(photo.id);
@@ -1694,42 +1653,6 @@ class _AddPhotoButton extends StatelessWidget {
           SizedBox(height: 4),
           Text('사진 추가', style: TextStyle(fontSize: 11)),
         ],
-      ),
-    ),
-  );
-}
-
-class _GalleryTabButton extends StatelessWidget {
-  const _GalleryTabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Container(
-      height: 56,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: selected ? AppColors.brand : Colors.transparent,
-            width: 2,
-          ),
-        ),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: selected ? AppColors.textPrimary : AppColors.textSecondary,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        ),
       ),
     ),
   );

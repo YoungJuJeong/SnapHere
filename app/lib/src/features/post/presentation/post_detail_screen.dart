@@ -148,7 +148,7 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// 장소명과 위치 신뢰도 배지를 한 줄에 둔다 (PST-033, PST-046, PLC-012).
+/// 긴 장소명과 주소가 화면 너비를 넘지 않도록 장소 정보와 신뢰도 배지를 나눈다.
 class _PlaceRow extends StatelessWidget {
   const _PlaceRow({required this.detail});
 
@@ -158,15 +158,13 @@ class _PlaceRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final place = detail.place!;
     final text = Theme.of(context).textTheme;
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.xs,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
           onTap: () => context.push('/places/${place.placeId}'),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Icon(
                 Icons.place_outlined,
@@ -174,16 +172,33 @@ class _PlaceRow extends StatelessWidget {
                 color: AppColors.brand,
               ),
               const SizedBox(width: AppSpacing.xs),
-              Text(
-                place.title,
-                style: text.labelLarge?.copyWith(color: AppColors.brand),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      place.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.labelLarge?.copyWith(color: AppColors.brand),
+                    ),
+                    if (place.addr1 != null)
+                      Text(
+                        place.addr1!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall,
+                      ),
+                  ],
+                ),
               ),
-              if (place.addr1 != null)
-                Text(' · ${place.addr1}', style: text.bodySmall),
             ],
           ),
         ),
-        if (detail.tierResult != null) TierBadge(result: detail.tierResult!),
+        if (detail.tierResult != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          TierBadge(result: detail.tierResult!),
+        ],
       ],
     );
   }

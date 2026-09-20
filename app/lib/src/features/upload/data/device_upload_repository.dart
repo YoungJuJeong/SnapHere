@@ -81,9 +81,6 @@ class DeviceUploadRepository implements UploadRepository {
   }
 
   @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async => const [];
-
-  @override
   Future<void> openMediaSettings() => PhotoManager.openSetting();
 
   @override

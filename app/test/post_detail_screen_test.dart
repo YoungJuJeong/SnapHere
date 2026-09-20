@@ -97,7 +97,11 @@ class _StubPostRepository implements PostRepository {
 final detail = PostDetail(
   postId: 'pst_1',
   author: const PostAuthor(userId: 'usr_1', nickname: '너구리여행자'),
-  place: const PostPlace(placeId: 'plc_1', title: '전주 한옥마을', addr1: '전북 전주시'),
+  place: const PostPlace(
+    placeId: 'plc_1',
+    title: '전주 한옥마을',
+    addr1: '전북특별자치도 전주시 완산구 기린대로 99 아주 긴 상세 주소',
+  ),
   images: const [PostImage(postImageId: 'img_1', imageUrl: '')],
   content: '전주 한옥마을의 봄\n날씨 좋은 날 경복궁을 다녀왔어요.',
   tags: const [PostTag(tagId: 't1', name: '2026 전주 한옥마을 봄축제', locked: true)],
@@ -182,6 +186,7 @@ void main() {
     expect(find.text('2026 전주 한옥마을 봄축제'), findsOneWidget);
     expect(find.text('142'), findsOneWidget);
     expect(find.text('댓글 28개'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('신뢰 등급 배지를 누르면 판정 기준을 연다', (tester) async {
@@ -219,6 +224,8 @@ void main() {
 
   testWidgets('댓글 줄을 누르면 댓글 화면으로 간다', (tester) async {
     await mount(tester);
+    await tester.ensureVisible(find.text('댓글 28개'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('댓글 28개'));
     await tester.pumpAndSettle();
     expect(find.text('comments-screen'), findsOneWidget);

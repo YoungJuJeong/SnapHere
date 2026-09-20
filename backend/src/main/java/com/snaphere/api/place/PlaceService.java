@@ -6,6 +6,8 @@ import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.web.CursorCodec;
 import com.snaphere.api.common.web.CursorPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.util.Locale;
 
 @Service
 public class PlaceService {
+    private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
     private static final int MAX_PAGE = 50;
     private final PlaceRepository places;
     private final GoogleGeocodingClient geocoder;
@@ -195,7 +198,10 @@ public class PlaceService {
                 cache.evictDetail(place.id(),language);
             }
         } catch (RuntimeException e) {
-            if ("ko".equals(language)) throw new ApiException(ErrorCode.COMMON_503);
+            // 관광 API의 부가정보 장애가 내부 DB에 이미 저장된 장소명·주소·사진까지
+            // 가리지 않게 한다. 빈 상세를 저장하지 않아 다음 요청에서 다시 보강한다.
+            log.warn("장소 부가정보 보강 실패. 기본 정보로 응답한다. placeId={}, language={}, type={}",
+                    place.id(), language, e.getClass().getSimpleName());
         }
     }
 
