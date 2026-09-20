@@ -60,7 +60,7 @@ public class PlaceController {
     ApiResponse<PlaceDtos.NearestPlaceMatchResult> nearestMatch(
             @Valid @RequestBody PlaceDtos.NearestPlaceMatchRequest body,
             HttpServletRequest request) {
-        return ok(service.nearestGoogleMatch(body, users.require(request)), request);
+        return ok(service.nearestMatch(body, users.require(request)), request);
     }
 
     @GetMapping("/places/{placeId}")

@@ -114,12 +114,16 @@ void main() {
     );
   }
 
-  test('좌표는 Google 최근접 장소 매칭 요청에만 본문으로 전송한다', () async {
+  test('사진 좌표로 자동 주변 장소 조회를 하지 않는다', () async {
     final repo = repository(
-      respond: (request) => request.url.path == '/api/v1/places/nearest-match'
+      respond: (request) => request.url.path == '/api/v1/places/nearby'
           ? _data({
-              'suggestedName': '한옥마을',
-              'formattedAddress': '대한민국 전주시 완산구',
+              'exactMatch': {
+                'placeId': 'plc_1',
+                'title': '전주 한옥마을',
+                'addr1': '전북 전주시 완산구',
+                'distanceM': 25,
+              },
               'candidates': [
                 {
                   'placeId': 'plc_1',
@@ -140,10 +144,8 @@ void main() {
       ),
     );
 
-    expect(places.single.name, '전주 한옥마을');
-    expect(requests.single.method, 'POST');
-    expect(requests.single.url.queryParameters, isEmpty);
-    expect(jsonDecode(requests.single.body), {'lat': 35.814, 'lng': 127.153});
+    expect(places, isEmpty);
+    expect(requests, isEmpty);
   });
 
   test('서버의 실제 201 응답으로 완료 전환하고 게시글 번호와 뱃지를 유지한다', () async {
@@ -301,8 +303,8 @@ void main() {
     expect(body['eventId'], 2);
   });
 
-  test('카메라 촬영 시각과 좌표를 게시글 요청에는 전달하지 않는다', () async {
-    final takenAt = DateTime.parse('2026-09-18T10:20:30+09:00');
+  test('카메라 사진은 기기 안에서 계산한 등급만 등록 요청에 전달한다', () async {
+    final takenAt = DateTime.now().subtract(const Duration(minutes: 1));
     final photo = UploadPhoto(
       id: 'camera-1',
       filePath: draft.primaryPhoto.filePath,
@@ -317,12 +319,20 @@ void main() {
         primaryPhoto: photo,
         title: draft.title,
         description: draft.description,
-        place: draft.place,
+        place: UploadPlace(
+          id: draft.place.id,
+          name: draft.place.name,
+          address: draft.place.address,
+          latitude: 35.003,
+          longitude: 128.064,
+        ),
         eventId: draft.eventId,
       ),
     );
     final body = jsonDecode(requests.last.body) as Map;
     expect(body['source'], 'CAMERA');
+    expect(body['localTier'], 'HIGH');
+    expect(body['localWithinRadius'], isTrue);
     expect(body.containsKey('takenAt'), isFalse);
     expect(body.containsKey('lat'), isFalse);
     expect(body.containsKey('lng'), isFalse);
@@ -391,14 +401,12 @@ void main() {
     }
   });
 
-  test('태그 추천과 등급 미리보기도 같은 장소·행사 번호를 사용한다', () async {
+  test('태그 추천은 장소·행사 번호를 사용하고 등급 미리보기는 서버를 호출하지 않는다', () async {
     final repo = repository(
       respond: (request) => request.url.path == '/api/v1/tags/suggestions'
           ? _data([
               {'name': '공원'},
             ])
-          : request.url.path == '/api/v1/posts/tier-preview'
-          ? _data({'tier': 'LOW'})
           : null,
     );
     expect(await repo.suggestTags(placeId: 'plc_2zq', eventId: 'evt_10'), [
@@ -407,19 +415,14 @@ void main() {
     expect(requests.single.url.queryParameters['placeId'], '3878');
     expect(requests.single.url.queryParameters['eventId'], '36');
     expect(
-      (await repo.previewTier(
+      await repo.previewTier(
         placeId: 'plc_2zq',
         eventId: 'evt_10',
         fromCamera: false,
-      ))?.tier,
-      'LOW',
+      ),
+      isNull,
     );
-    final body = jsonDecode(requests.last.body) as Map;
-    expect(body['placeId'], 3878);
-    expect(body['eventId'], 36);
-    expect(body.containsKey('takenAt'), isFalse);
-    expect(body.containsKey('lat'), isFalse);
-    expect(body.containsKey('lng'), isFalse);
+    expect(requests, hasLength(1));
   });
 
   test('잘못된 장소·행사 ID는 사진 준비 요청 전에 구체적으로 안내한다', () async {

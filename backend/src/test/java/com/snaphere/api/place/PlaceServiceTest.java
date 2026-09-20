@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
@@ -19,7 +20,6 @@ import static org.mockito.Mockito.when;
 class PlaceServiceTest {
 
     @Mock private PlaceRepository places;
-    @Mock private GoogleGeocodingClient geocoder;
     @Mock private TourPlaceDetailClient details;
     @Mock private ViewCounterService views;
     @Mock private RecentPlaceService recentPlaces;
@@ -29,7 +29,7 @@ class PlaceServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PlaceService(places, geocoder, details, views, recentPlaces, cache);
+        service = new PlaceService(places, details, views, recentPlaces, cache);
     }
 
     @Test
@@ -61,5 +61,24 @@ class PlaceServiceTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any());
         verify(views).increment(7L);
+    }
+
+    @Test
+    @DisplayName("최근접 장소는 사진의 원래 좌표에서 계산한 거리 순서를 그대로 쓴다")
+    void nearestMatchUsesPhotoCoordinates() {
+        var first = new PlaceDtos.PlaceSummary("plc_1", "TOURIST", "가까운 장소", "전주", null,
+                35.0, 127.0, 0, 0, 25, true, false);
+        var second = new PlaceDtos.PlaceSummary("plc_2", "TOURIST", "먼 장소", "전주", null,
+                35.1, 127.1, 0, 0, 80, true, false);
+        var actor = new com.snaphere.api.common.security.CurrentUser(UUID.randomUUID());
+        when(places.nearby(35.814, 127.153, 20_000, 20, actor.userId()))
+                .thenReturn(List.of(first, second));
+
+        PlaceDtos.NearestPlaceMatchResult result = service.nearestMatch(
+                new PlaceDtos.NearestPlaceMatchRequest(35.814, 127.153), actor);
+
+        assertThat(result.candidates()).containsExactly(first, second);
+        assertThat(result.suggestedName()).isNull();
+        verify(places).nearby(35.814, 127.153, 20_000, 20, actor.userId());
     }
 }

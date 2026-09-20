@@ -117,6 +117,36 @@ void main() {
     expect(feed.posts.single.title, '팔로잉 사진');
   });
 
+  test('팔로잉 집계 API가 없으면 기존 목록과 사용자 게시글로 복구한다', () async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/feeds/following')) {
+        return _json({'error': {'code': 'COMMON_500'}}, status: 500);
+      }
+      if (request.url.path.endsWith('/users/me/following')) {
+        return _json({'data': {'items': [{'userId': 'followed'}]}});
+      }
+      if (request.url.path.endsWith('/users/followed/posts')) {
+        return _json({'data': {'items': [_summary()], 'hasNext': false}});
+      }
+      if (request.url.path.endsWith('/posts/pst_1')) {
+        return _json({'data': {'content': '복구된 팔로잉 사진'}});
+      }
+      fail('unexpected request: ${request.url}');
+    });
+    final repository = ApiCommunityRepository(
+      api: ApiClient(baseUrl: 'http://test', client: client),
+      accessToken: 'token',
+      currentUserId: 'me',
+    );
+
+    final feed = await repository.fetchFeed(
+      tab: CommunityFeedTab.following,
+      sort: CommunitySort.latest,
+    );
+
+    expect(feed.posts.single.title, '복구된 팔로잉 사진');
+  });
+
   test('explore repository maps region aggregates', () async {
     final repository = ApiExploreRepository(
       api: ApiClient(

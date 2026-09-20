@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as image;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/upload/domain/upload_failure.dart';
+import 'package:snap_here/src/features/upload/domain/local_tier_calculator.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
 
@@ -76,6 +76,7 @@ class DeviceUploadRepository implements UploadRepository {
       source: UploadPhotoSource.deviceLibrary,
       latitude: location?.latitude,
       longitude: location?.longitude,
+      takenAt: entity.createDateTime,
       aspectRatio: entity.height == 0 ? null : entity.width / entity.height,
     );
   }
@@ -85,19 +86,8 @@ class DeviceUploadRepository implements UploadRepository {
 
   @override
   Future<List<UploadPlace>> matchPlaces(UploadPhoto photo) async {
-    final position = photo.hasLocationMetadata
-        ? (latitude: photo.latitude!, longitude: photo.longitude!)
-        : await _currentCoordinates();
-    final result = jsonMap(
-      await _api.post(
-        '/places/nearest-match',
-        body: {'lat': position.latitude, 'lng': position.longitude},
-        accessToken: accessToken,
-      ),
-    );
-    return jsonMapList(result['candidates'])
-        .map(_place)
-        .toList(growable: false);
+    // 사진·기기 좌표를 서버에 보내지 않는다. 장소는 검색 또는 행사에서 직접 고른다.
+    return const [];
   }
 
   @override
@@ -118,30 +108,9 @@ class DeviceUploadRepository implements UploadRepository {
     name: json['title']! as String,
     address: json['addr1'] as String? ?? '',
     distanceMeters: (json['distanceM'] as num?)?.toInt(),
+    latitude: (json['lat'] as num?)?.toDouble(),
+    longitude: (json['lng'] as num?)?.toDouble(),
   );
-
-  Future<({double latitude, double longitude})> _currentCoordinates() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      throw const UploadLocationException('기기의 위치 서비스를 켜 주세요.');
-    }
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      throw const UploadLocationException(
-        '위치 권한이 없어 자동 매칭할 수 없습니다. 장소를 직접 검색해 주세요.',
-      );
-    }
-    final value = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 12),
-      ),
-    );
-    return (latitude: value.latitude, longitude: value.longitude);
-  }
 
   @override
   Future<List<String>> suggestTags({
@@ -184,25 +153,8 @@ class DeviceUploadRepository implements UploadRepository {
     double? lat,
     double? lng,
   }) async {
-    final token = accessToken;
-    if (token == null) return null;
-    try {
-      return TierPreview.fromJson(
-        jsonMap(
-          await _api.post(
-            '/posts/tier-preview',
-            body: {
-              'placeId': _numericId(placeId, 'plc_'),
-              if (eventId != null) 'eventId': _numericId(eventId, 'evt_'),
-              'source': fromCamera ? 'CAMERA' : 'ALBUM',
-            },
-            accessToken: token,
-          ),
-        ),
-      );
-    } on ApiException {
-      return null;
-    }
+    // 구 인터페이스 호환용. 새 화면은 장소를 선택한 뒤 기기에서 직접 계산한다.
+    return null;
   }
 
   @override
@@ -321,25 +273,30 @@ class DeviceUploadRepository implements UploadRepository {
     UploadPhoto primary, {
     required int placeId,
     int? eventId,
-  }) => {
-    'placeId': placeId,
-    'eventId': ?eventId,
-    'content': [
-      draft.title,
-      draft.description,
-    ].where((value) => value.isNotEmpty).join('\n'),
-    'originalLanguageCode': 'ko',
-    'images': [
-      for (var index = 0; index < uploadTargets.length; index++)
-        {
-          'imageKey': uploadTargets[index]['imageKey'],
-          'sortOrder': index + 1,
-          'aspectRatio': photos[index].aspectRatio,
-        },
-    ],
-    'tagNames': draft.requestTagNames,
-    'source': primary.source == UploadPhotoSource.camera ? 'CAMERA' : 'ALBUM',
-  };
+  }) {
+    final localTier = calculateLocalTier(primary, draft.place);
+    return {
+      'placeId': placeId,
+      'eventId': ?eventId,
+      'content': [
+        draft.title,
+        draft.description,
+      ].where((value) => value.isNotEmpty).join('\n'),
+      'originalLanguageCode': 'ko',
+      'images': [
+        for (var index = 0; index < uploadTargets.length; index++)
+          {
+            'imageKey': uploadTargets[index]['imageKey'],
+            'sortOrder': index + 1,
+            'aspectRatio': photos[index].aspectRatio,
+          },
+      ],
+      'tagNames': draft.requestTagNames,
+      'source': primary.source == UploadPhotoSource.camera ? 'CAMERA' : 'ALBUM',
+      'localTier': localTier.tier,
+      'localWithinRadius': localTier.withinRadius,
+    };
+  }
 
   int _numericId(String id, String prefix) {
     final raw = id.startsWith(prefix) ? id.substring(prefix.length) : null;

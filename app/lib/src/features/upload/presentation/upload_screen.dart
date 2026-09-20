@@ -195,6 +195,8 @@ class _UploadScreenContent extends ConsumerWidget {
                 id: resolvedEvent.place.placeId,
                 name: resolvedEvent.place.name,
                 address: resolvedEvent.place.address,
+                latitude: resolvedEvent.place.latitude,
+                longitude: resolvedEvent.place.longitude,
               ),
               fixedTags: resolvedEvent.fixedTags,
               verifyRadiusM: resolvedEvent.verifyRadiusM,
@@ -1273,6 +1275,7 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
     try {
       final coordinates = await _captureCoordinates();
       if (!mounted || !controller.value.isInitialized) return;
+      final takenAt = DateTime.now();
       final file = await controller.takePicture();
       final croppedPath = await compute(_cropCapturedPhoto, {
         'path': file.path,
@@ -1286,6 +1289,7 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
           source: UploadPhotoSource.camera,
           latitude: coordinates?.latitude,
           longitude: coordinates?.longitude,
+          takenAt: takenAt,
           aspectRatio: _viewRatio.portraitAspectRatio,
         ),
       );

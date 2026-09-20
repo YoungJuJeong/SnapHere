@@ -236,7 +236,7 @@ class UploadController extends AsyncNotifier<UploadState> {
           selectedPlace: places.firstOrNull,
           clearSelectedPlace: places.isEmpty,
           isMatchingLocation: false,
-          locationMessage: places.isEmpty ? '주변 장소를 찾지 못했어요.' : null,
+          locationMessage: places.isEmpty ? '장소를 검색해 선택해 주세요.' : null,
           clearLocationMessage: places.isNotEmpty,
         ),
       );
