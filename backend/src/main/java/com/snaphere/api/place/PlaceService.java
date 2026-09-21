@@ -22,21 +22,22 @@ public class PlaceService {
     private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
     private static final int MAX_PAGE = 50;
     private final PlaceRepository places;
-    private final GoogleGeocodingClient geocoder;
     private final TourPlaceDetailClient details;
     private final ViewCounterService views;
     private final RecentPlaceService recentPlaces;
     private final PlaceReadCache cache;
+    private final GoogleGeocodingClient geocoder;
 
-    public PlaceService(PlaceRepository places, GoogleGeocodingClient geocoder,
+    public PlaceService(PlaceRepository places,
                         TourPlaceDetailClient details, ViewCounterService views,
-                        RecentPlaceService recentPlaces, PlaceReadCache cache) {
+                        RecentPlaceService recentPlaces, PlaceReadCache cache,
+                        GoogleGeocodingClient geocoder) {
         this.places = places;
-        this.geocoder = geocoder;
         this.details = details;
         this.views = views;
         this.recentPlaces = recentPlaces;
         this.cache = cache;
+        this.geocoder = geocoder;
     }
 
     public List<PlaceDtos.Region> regions() {
@@ -72,24 +73,14 @@ public class PlaceService {
         return new PlaceDtos.NearbyPlaceResult(exact, candidates, exact == null, radiusM, nearestDistance);
     }
 
-    public PlaceDtos.NearestPlaceMatchResult nearestGoogleMatch(
+    public PlaceDtos.NearestPlaceMatchResult nearestMatch(
             PlaceDtos.NearestPlaceMatchRequest request, CurrentUser actor) {
         validCoordinate(request.lat(), request.lng());
-        GoogleGeocodingClient.ResolvedPlace resolved = geocoder.nearest(request.lat(), request.lng());
+        // 사진의 원래 좌표에서 계산한 거리 순서로 추천한다. 역지오코딩 좌표나
+        // 이름 유사도는 장소 선택 순서를 바꾸지 않는다.
         List<PlaceDtos.PlaceSummary> candidates = places.nearby(
-                resolved.lat(), resolved.lng(), 20_000, 50, actor.userId());
-        String googleText = normalizeSearchText(firstNonBlank(
-                resolved.suggestedName(), resolved.formattedAddress()));
-        List<PlaceDtos.PlaceSummary> ordered = candidates.stream()
-                .sorted(java.util.Comparator
-                        .comparing((PlaceDtos.PlaceSummary place) ->
-                                !matchesGoogleText(place, googleText))
-                        .thenComparing(place -> place.distanceM() == null
-                                ? Integer.MAX_VALUE : place.distanceM()))
-                .limit(20)
-                .toList();
-        return new PlaceDtos.NearestPlaceMatchResult(
-                resolved.suggestedName(), resolved.formattedAddress(), ordered);
+                request.lat(), request.lng(), 20_000, 20, actor.userId());
+        return new PlaceDtos.NearestPlaceMatchResult(null, null, candidates);
     }
 
     public PlaceDtos.PlaceDetail detail(String externalId, String acceptLanguage, CurrentUser actor) {
@@ -109,15 +100,32 @@ public class PlaceService {
         }
         java.util.UUID viewer = actor == null ? null : actor.userId();
         PlaceDtos.PlaceSummary summary = places.summary(id, viewer);
-        List<PlaceDtos.PlaceSummary> nearby = summary.lat() == null ? List.of() : places.nearby(
-                summary.lat(), summary.lng(), 5000, 7, viewer).stream().filter(p -> !p.placeId().equals(externalId)).limit(6).toList();
-        List<PlaceDtos.PostSummary> recent = places.posts(id, null, 12, viewer);
+        // 부가 섹션의 조회 실패가 장소 기본 정보를 가리지 않게 한다. 상세 화면은
+        // 장소명·주소·인증 반경만으로도 열 수 있고, 주변 장소·최근 글은 다음 진입에서
+        // 다시 보강된다.
+        List<PlaceDtos.PlaceSummary> nearby = summary.lat() == null ? List.of() : optional(
+                "주변 장소", id, () -> places.nearby(summary.lat(), summary.lng(), 5000, 7, viewer)
+                        .stream().filter(p -> !p.placeId().equals(externalId)).limit(6).toList(), List.of());
+        List<PlaceDtos.PostSummary> recent = optional(
+                "최근 게시글", id, () -> places.posts(id, null, 12, viewer), List.of());
         long totalViews = detail.viewCount() + views.pending(id) + 1;
         views.increment(id);
         // 최근 본 장소 (VST-006). 비회원은 남길 곳이 없어 건너뛴다.
         recentPlaces.record(viewer, id);
         return new PlaceDtos.PlaceDetail(summary, detail.overview(), language, detail.tel(), detail.homepage(),
-                detail.verifyRadiusM(), totalViews, places.ranking(id), nearby, recent);
+                detail.verifyRadiusM(), totalViews,
+                optional("장소 랭킹", id, () -> places.ranking(id), null), nearby, recent);
+    }
+
+    private <T> T optional(String section, long placeId, java.util.function.Supplier<T> load,
+                           T fallback) {
+        try {
+            return load.get();
+        } catch (RuntimeException failure) {
+            log.warn("장소 상세의 {} 조회 실패. 기본 정보로 응답한다. placeId={}, type={}",
+                    section, placeId, failure.getClass().getSimpleName());
+            return fallback;
+        }
     }
 
     private PlaceReadCache.DetailContent cachedDetail(long id, String language,
@@ -222,23 +230,6 @@ public class PlaceService {
         if (first.startsWith("ja")) return "ja";
         if (first.startsWith("zh")) return first.contains("cn") || first.contains("hans") ? "zh-CN" : "zh-TW";
         return "ko";
-    }
-
-    private static boolean matchesGoogleText(PlaceDtos.PlaceSummary place, String googleText) {
-        if (googleText.isEmpty()) return false;
-        String title = normalizeSearchText(place.title());
-        String address = normalizeSearchText(place.addr1());
-        return (!title.isEmpty() && (googleText.contains(title) || title.contains(googleText)))
-                || (!address.isEmpty() && googleText.contains(address));
-    }
-
-    private static String normalizeSearchText(String value) {
-        return value == null ? "" : value.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
-    }
-
-    private static String firstNonBlank(String... values) {
-        for (String value : values) if (value != null && !value.isBlank()) return value;
-        return "";
     }
 
     private static <T> CursorPage<T> page(List<T> rows, int size, java.util.function.ToLongFunction<T> id) {

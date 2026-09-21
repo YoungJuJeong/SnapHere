@@ -13,8 +13,10 @@ const _useFakeCommunity = bool.fromEnvironment(
 
 final communityRepositoryProvider = Provider<CommunityRepository>((ref) {
   if (_useFakeCommunity) return FakeCommunityRepository();
+  final session = ref.watch(authControllerProvider).value;
   return ApiCommunityRepository(
-    accessToken: ref.watch(authControllerProvider).value?.accessToken,
+    accessToken: session?.accessToken,
+    currentUserId: session?.user?.id,
   );
 });
 

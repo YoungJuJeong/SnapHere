@@ -5,11 +5,12 @@ import 'package:snap_here/src/features/community/domain/community_repository.dar
 import 'package:snap_here/src/features/post/domain/post_id.dart';
 
 class ApiCommunityRepository implements CommunityRepository {
-  ApiCommunityRepository({ApiClient? api, this.accessToken})
+  ApiCommunityRepository({ApiClient? api, this.accessToken, this.currentUserId})
     : _api = api ?? ApiClient();
 
   final ApiClient _api;
   final String? accessToken;
+  final String? currentUserId;
 
   @override
   Future<CommunityFeed> fetchFeed({
@@ -20,16 +21,25 @@ class ApiCommunityRepository implements CommunityRepository {
       if (accessToken == null) {
         return const CommunityFeed(posts: [], sectionTitle: '팔로잉 스냅');
       }
-      final result = jsonMap(
-        await _api.get(
-          '/feeds/following',
-          query: const {'size': '30'},
-          accessToken: accessToken,
-        ),
-      );
-      final page = jsonMap(result['page']);
-      final posts = await Future.wait(jsonMapList(page['items']).map(_hydrate));
-      return CommunityFeed(posts: posts, sectionTitle: '팔로잉 스냅');
+      try {
+        final result = jsonMap(
+          await _api.get(
+            '/feeds/following',
+            query: const {'size': '30'},
+            accessToken: accessToken,
+          ),
+        );
+        final page = jsonMap(result['page']);
+        final posts = await Future.wait(jsonMapList(page['items']).map(_hydrate));
+        return CommunityFeed(posts: posts, sectionTitle: '팔로잉 스냅');
+      } on ApiException {
+        // 이전 서버에는 팔로잉 집계 피드가 없다. 이미 제공하던 팔로잉 목록과
+        // 사용자별 게시글 목록을 조합해, 배포 순서와 관계없이 탭을 사용할 수 있게 한다.
+        return CommunityFeed(
+          posts: await _followingFallback(),
+          sectionTitle: '팔로잉 스냅',
+        );
+      }
     }
     final path = sort == CommunitySort.latest
         ? '/feeds/recent'
@@ -45,6 +55,38 @@ class ApiCommunityRepository implements CommunityRepository {
       sectionTitle: sort == CommunitySort.latest ? '최신 스냅' : '인기 스냅',
       posts: posts,
     );
+  }
+
+  Future<List<CommunityPost>> _followingFallback() async {
+    final userId = currentUserId;
+    if (userId == null) return const [];
+    try {
+      final page = jsonMap(
+        await _api.get(
+          '/users/$userId/following',
+          query: const {'size': '30'},
+          accessToken: accessToken,
+        ),
+      );
+      final users = jsonMapList(page['items']);
+      final reader = PostPageReader(_api, accessToken: accessToken);
+      final pages = await Future.wait(
+        users.map((user) async {
+          final id = user['userId'] as String?;
+          if (id == null || id.isEmpty) return const <CommunityPost>[];
+          try {
+            return (await reader.fetch('/users/$id/posts')).items;
+          } on ApiException {
+            return const <CommunityPost>[];
+          }
+        }),
+      );
+      final posts = pages.expand((items) => items).toList()
+        ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
+      return posts.take(30).toList(growable: false);
+    } on ApiException {
+      return const [];
+    }
   }
 
   Future<CommunityPost> _hydrate(Map<String, Object?> summary) async {
